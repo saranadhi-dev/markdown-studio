@@ -1,6 +1,6 @@
 "use client";
 import {
-  Check, Keyboard, 
+  Check, Keyboard,
   Minus, Plus, X,
 } from "./Icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -10,6 +10,9 @@ import Preview from "./Preview";
 import type { AnnApi } from "@/lib/annotate";
 import { toggleTask, type TocItem } from "@/lib/render";
 import { WELCOME } from "@/lib/welcome";
+import { useSearchParams } from "next/navigation"
+import { POSTGRES_INTERNALS } from "@/lib/POSTGRES_INTERNALS";
+import { CLICKHOUSE_INTERNALS } from "@/lib/CLICKHOUSE_INTERNALS";
 
 type Mode = "preview" | "split" | "editor";
 const WIDTHS: [string, string][] = [["Narrow", "720px"], ["Default", "880px"], ["Wide", "1200px"], ["Full width", "100%"]];
@@ -23,9 +26,13 @@ const SHORTCUTS: [string, string][] = [
 ];
 
 export default function Workbench() {
+
+  const searchParams = useSearchParams();
+
   const [text, setText] = useState(WELCOME);
   const [name, setName] = useState("Untitled.md");
   const [savedText, setSavedText] = useState(WELCOME);
+
   const [mode, setMode] = useState<Mode>("split");
   const [toc, setToc] = useState<TocItem[]>([]);
   const [showToc, setShowToc] = useState(false);
@@ -47,6 +54,7 @@ export default function Workbench() {
   const handleRef = useRef<any>(null);
   const toastTimer = useRef<any>(null);
   const lock = useRef(false);
+  const [flag, setFlag] = useState(false) //skip browser persistance
 
   const dirty = text !== savedText;
   const base = name.replace(MD_RE, "") || "document";
@@ -61,34 +69,61 @@ export default function Workbench() {
     toastTimer.current = setTimeout(() => setToast(""), 1800);
   }, []);
 
+  useEffect(() => {
+    const blog = searchParams.get("blog")
+    if (blog === "POSTGRES_INTERNALS") {
+      setFlag(true)
+      setText(POSTGRES_INTERNALS)
+      setMode("preview")
+      annRef.current?.toggle()
+    }
+    else if (blog === "CLICKHOUSE_INTERNALS") {
+      setFlag(true)
+      setText(CLICKHOUSE_INTERNALS)
+      setMode("preview")
+      annRef.current?.toggle()
+    }
+    else {
+      setFlag(false)
+      setText(WELCOME)
+      setMode("split")
+    }
+  }, [])
+
   // ---------- persistence (browser only) ----------
   useEffect(() => {
-    try {
-      const d = JSON.parse(localStorage.getItem("mds:draft") || "null");
-      if (d && typeof d.text === "string") {
-        setText(d.text); setName(d.name || "Untitled.md"); setSavedText(typeof d.saved === "string" ? d.saved : d.text);
-      }
-      const p = JSON.parse(localStorage.getItem("mds:prefs") || "null");
-      if (p) {
-        if (p.mode) setMode(p.mode);
-        if (p.width) setWidth(p.width);
-        if (p.font) setFont(p.font);
-        if (typeof p.wrap === "boolean") setWrap(p.wrap);
-        if (typeof p.toc === "boolean") setShowToc(p.toc);
-      }
-    } catch { }
-    setHydrated(true);
+    if (!flag) {
+      try {
+        const d = JSON.parse(localStorage.getItem("mds:draft") || "null");
+        if (d && typeof d.text === "string") {
+          setText(d.text); setName(d.name || "Untitled.md"); setSavedText(typeof d.saved === "string" ? d.saved : d.text);
+        }
+        const p = JSON.parse(localStorage.getItem("mds:prefs") || "null");
+        if (p) {
+          if (p.mode) setMode(p.mode);
+          if (p.width) setWidth(p.width);
+          if (p.font) setFont(p.font);
+          if (typeof p.wrap === "boolean") setWrap(p.wrap);
+          if (typeof p.toc === "boolean") setShowToc(p.toc);
+        }
+      } catch { }
+      setHydrated(true);
+    }
   }, []);
   useEffect(() => {
-    if (!hydrated) return;
-    const t = setTimeout(() => {
-      try { localStorage.setItem("mds:draft", JSON.stringify({ text, name, saved: savedText })); } catch { }
-    }, 300);
-    return () => clearTimeout(t);
+    if (!flag) {
+      if (!hydrated) return;
+      const t = setTimeout(() => {
+        try { localStorage.setItem("mds:draft", JSON.stringify({ text, name, saved: savedText })); } catch { }
+      }, 300);
+      return () => clearTimeout(t);
+    }
   }, [text, name, savedText, hydrated]);
   useEffect(() => {
-    if (!hydrated) return;
-    try { localStorage.setItem("mds:prefs", JSON.stringify({ mode, width, font, wrap, toc: showToc })); } catch { }
+    if (!flag) {
+      if (!hydrated) return;
+      try { localStorage.setItem("mds:prefs", JSON.stringify({ mode, width, font, wrap, toc: showToc })); } catch { }
+    }
   }, [mode, width, font, wrap, showToc, hydrated]);
 
   // ---------- file ops ----------

@@ -3,6 +3,7 @@ import "github-markdown-css/github-markdown-dark.css";
 import "highlight.js/styles/github-dark.css";
 import "./print-light.css";
 import "./globals.css";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "MD Studio - Markdown viewer & editor",
@@ -13,7 +14,9 @@ export const viewport: Viewport = { themeColor: "#0b0f14", width: "device-width"
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+         <Suspense>{children}</Suspense>
+      </body>
     </html>
   );
 }
